@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>TOOL THIÊN TRẦN</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #050507; color: #cfcfcf;
+    font-family: 'Courier New', monospace;
+    padding: 20px; margin: 0; min-height: 100vh;
+    position: relative;
+  }
+  #hexbg {
+    position: fixed; inset: 0; z-index: 0;
+    color: #ff2d55; opacity: 0.07; font-size: 11px; line-height: 1.35;
+    white-space: pre; overflow: hidden;
+    pointer-events: none; user-select: none;
+  }
+  #scanlines {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: repeating-linear-gradient(to bottom,
+      rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px,
+      transparent 1px, transparent 3px);
+  }
+  #vignette {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+  }
+  .wrap { position: relative; z-index: 3; max-width: 1100px; margin: 0 auto; }
+
+  .header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 22px; padding-bottom: 16px;
+    border-bottom: 1px solid #2a0a14;
+  }
+  .header .gif {
+    width: 66px; height: 66px; object-fit: cover;
+    border: 1px solid #ff2d55; border-radius: 8px;
+    background: #0a0a0a; box-shadow: 0 0 12px rgba(255,45,85,.45);
+  }
+  .header .title {
+    font-size: 22px; font-weight: bold; color: #ff2d55;
+    letter-spacing: 4px; text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(255,45,85,.6);
+  }
+  .header .sub { font-size: 11px; color: #5a5a5a; letter-spacing: 1px; margin-top: 4px; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab {
+    padding: 10px 22px; background: #0d0d0f;
+    border: 1px solid #222; color: #666;
+    cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .tab.active {
+    background: #ff2d55; color: #000; border-color: #ff2d55;
+    font-weight: bold; box-shadow: 0 0 14px rgba(255,45,85,.5);
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .dropzone {
+    border: 2px dashed #222; padding: 40px; text-align: center;
+    color: #555; cursor: pointer; background: #08080a;
+    margin-bottom: 16px;
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: #ff2d55; color: #ff2d55; background: #12030a;
+  }
+  .dropzone input { display: none; }
+
+  .info {
+    background: #0d0d0f; padding: 12px; margin-bottom: 16px;
+    border-left: 3px solid #ff2d55; font-size: 12px; color: #aaa;
+  }
+  .info span { color: #ff2d55; }
+
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  button {
+    padding: 8px 16px; background: #0d0d0f; border: 1px solid #222;
+    color: #cfcfcf; cursor: pointer; font-family: inherit; font-size: 12px;
+  }
+  button:hover { border-color: #ff2d55; color: #ff2d55; }
+  button.primary { background: #ff2d55; color: #000; border-color: #ff2d55; font-weight: bold; }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .viewer {
+    background: #000; border: 1px solid #222; padding: 12px;
+    height: 400px; overflow: auto; font-size: 12px; line-height: 1.5;
+    white-space: pre; color: #888;
+  }
+  .viewer .addr { color: #333; }
+  .viewer .hex { color: #4af; }
+  .viewer .ascii { color: #aaa; }
+  .viewer .str { color: #3f3; }
+
+  .log {
+    background: #000; border: 1px solid #222; padding: 12px;
+    height: 220px; overflow: auto; font-size: 12px; color: #888;
+    margin-top: 14px;
+  }
+  .log .ok { color: #3f3; }
+  .log .err { color: #ff2d55; }
+  .log .warn { color: #fa3; }
+  .section-label {
+    margin: 18px 0 10px; color: #ff2d55; font-size: 12px;
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  .sq-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+  }
+  .sq-btn {
+    aspect-ratio: 1/1; padding: 10px;
+    background: #0d0d0f; border: 1px solid #222;
+    color: #cfcfcf; cursor: pointer; font-family: inherit;
+    font-size: 11px; line-height: 1.35;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .sq-btn:hover { border-color: #ff2d55; color: #ff2d55; }
+  .sq-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .sq-btn .icon { font-size: 18px; margin-bottom: 6px; }
+  .sq-btn .label { font-weight: bold; }
+  .sq-btn .sub { font-size: 9px; color: #666; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div id="hexbg"></div>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<div class="wrap">
+  <div class="header">
+    <img class="gif" src="https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif" alt="gif">
+    <div>
+      <div class="title">TOOL THIÊN TRẦN</div>
+      <div class="sub">// vex build // upload · view · inject</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-btn-1" onclick="switchTab(1)">tab 1 // xem code</div>
+    <div class="tab" id="tab-btn-2" onclick="switchTab(2)">tab 2 // bơm code</div>
+  </div>
+
+  <div class="panel active" id="panel-1">
+    <div class="dropzone" id="dz1">
+      <input type="file" id="file1" accept=".bin,.so,.dll,.exe">
+      <div>drop .bin / .so ở đây hoặc click // max 100MB</div>
+    </div>
+    <div class="info" id="info1" style="display:none"></div>
+    <div class="toolbar">
+      <button onclick="viewAs('hex')">hex view</button>
+      <button onclick="viewAs('ascii')">ascii</button>
+      <button onclick="viewAs('strings')">strings</button>
+      <button id="dl1" onclick="downloadRaw()" disabled>download raw</button>
+    </div>
+    <div class="viewer" id="viewer1">// chưa có file. upload đi nerd.</div>
+  </div>
+
+  <div class="panel" id="panel-2">
+    <div class="dropzone" id="dz2">
+      <input type="file" id="file2" accept=".bin,.so,.dll,.exe">
+      <div>drop file để bơm code // .bin / .so</div>
+    </div>
+    <div class="info" id="info2" style="display:none"></div>
+
+    <div class="section-label">// chọn kiểu bơm</div>
+    <div class="sq-grid">
+      <button class="sq-btn" id="inject-belly" onclick="doBellyPatch()" disabled>
+        <div class="icon">⌖</div>
+        <div class="label">bơm code</div>
+        <div class="sub">aim bụng</div>
+      </button>
+      <button class="sq-btn" id="inject-neck" onclick="doNeckPatch()" disabled>
+        <div class="icon">☰</div>
+        <div class="label">bơm aim</div>
+        <div class="sub">neck nhẹ</div>
+      </button>
+      <button class="sq-btn" id="inject-drag" onclick="doDragPatch()" disabled>
+        <div class="icon">✛</div>
+        <div class="label">bơm code</div>
+        <div class="sub">aim drag</div>
+      </button>
+      <button class="sq-btn" id="verify-btn" onclick="verifyDrag()" disabled>
+        <div class="icon">◉</div>
+        <div class="label">verify</div>
+        <div class="sub">0x7148</div>
+      </button>
+    </div>
+
+    <div class="toolbar" style="margin-top:18px">
+      <button id="dl2" onclick="downloadPatched()" disabled>download file đã chỉnh sửa</button>
+    </div>
+    <div class="log" id="log2">// log sẽ hiện ở đây</div>
+  </div>
+</div>
+
+<script>
+/* ===== nền hex ===== */
+(function(){
+  var el = document.getElementById('hexbg');
+  var HEX = '0123456789abcdef';
+  var lines = 90, cols = 80;
+  function randByte() { return HEX.charAt(Math.floor(Math.random()*16)) + HEX.charAt(Math.floor(Math.random()*16)); }
+  function makeLine() {
+    var s = '';
+    for (var c = 0; c < cols; c++) s += randByte() + ' ';
+    return s;
+  }
+  var rows = [];
+  for (var i = 0; i < lines; i++) rows.push(makeLine());
+  el.textContent = rows.join('\n');
+  setInterval(function(){
+    rows.shift();
+    rows.push(makeLine());
+    el.textContent = rows.join('\n');
+  }, 90);
+})();
+
+/* ===== global state ===== */
+var buf1 = null, name1 = null, buf2 = null, name2 = null, patched = null;
+var viewMode = 'hex';
+
+/* ===== tab ===== */
+function switchTab(n) {
+  document.getElementById('tab-btn-1').classList.remove('active');
+  document.getElementById('tab-btn-2').classList.remove('active');
+  document.getElementById('panel-1').classList.remove('active');
+  document.getElementById('panel-2').classList.remove('active');
+  document.getElementById('tab-btn-' + n).classList.add('active');
+  document.getElementById('panel-' + n).classList.add('active');
+}
+
+/* ===== upload wire ===== */
+function wireDrop(dzId, inputId, onFile) {
+  var dz = document.getElementById(dzId);
+  var input = document.getElementById(inputId);
+  if (!dz || !input) return;
+  dz.addEventListener('click', function(e){
+    if (e.target === input) return;
+    input.click();
+  });
+  input.addEventListener('change', function(){
+    if (this.files && this.files[0]) onFile(this.files[0]);
+  });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('drag'); });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault();
+    dz.classList.remove('drag');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]);
+  });
+}
+
+wireDrop('dz1', 'file1', function(f){
+  if (f.size > 100*1024*1024) { document.getElementById('viewer1').textContent = 'file > 100MB'; return; }
+  var r = new FileReader();
+  r.onload = function(){
+    buf1 = new Uint8Array(r.result);
+    name1 = f.name;
+    document.getElementById('info1').style.display = 'block';
+    document.getElementById('info1').innerHTML = '<span>' + f.name + '</span> // ' + f.size + ' bytes';
+    viewAs('hex');
+    document.getElementById('dl1').disabled = false;
+  };
+  r.readAsArrayBuffer(f);
+});
+
+wireDrop('dz2', 'file2', function(f){
+  if (f.size > 100*1024*1024) { log('file > 100MB', 'err'); return; }
+  var r = new FileReader();
+  r.onload = function(){
+    buf2 = new Uint8Array(r.result);
+    name2 = f.name;
+    patched = null;
+    document.getElementById('info2').style.display = 'block';
+    document.getElementById('info2').innerHTML = '<span>' + f.name + '</span> // ' + f.size + ' bytes';
+    document.getElementById('inject-belly').disabled = false;
+    document.getElementById('inject-neck').disabled = false;
+    document.getElementById('inject-drag').disabled = false;
+    document.getElementById('verify-btn').disabled = false;
+    document.getElementById('dl2').disabled = true;
+    log('loaded ' + f.name + ' // ' + f.size + ' bytes', 'ok');
+  };
+  r.readAsArrayBuffer(f);
+});
+
+/* ===== viewer ===== */
+function viewAs(mode) {
+  viewMode = mode;
+  if (!buf1) return;
+  var el = document.getElementById('viewer1');
+  var max, i, line, c, hex, ascii, addr;
+  if (mode === 'hex') {
+    var lines = [];
+    max = Math.min(buf1.length, 100*1024);
+    for (i = 0; i < max; i += 16) {
+      c = buf1.slice(i, i+16);
+      hex = '';
+      ascii = '';
+      for (var k = 0; k < c.length; k++) {
+        hex += c[k].toString(16).padStart(2,'0') + ' ';
+        ascii += (c[k] >= 32 && c[k] < 127) ? String.fromCharCode(c[k]) : '.';
+      }
+      addr = i.toString(16).padStart(8,'0');
+      lines.push('<span class="addr">' + addr + '</span>  <span class="hex">' + hex.padEnd(47) + '</span>  <span class="ascii">' + ascii.replace(/</g,'&lt;') + '</span>');
+    }
+    el.innerHTML = lines.join('\n');
+  } else if (mode === 'ascii') {
+    var out = '';
+    max = Math.min(buf1.length, 200*1024);
+    for (i = 0; i < max; i++) {
+      c = buf1[i];
+      out += (c >= 32 && c < 127) ? String.fromCharCode(c) : (c === 10 ? '\n' : '·');
+    }
+    el.textContent = out;
+  } else {
+    var arr = [];
+    var cur = '', start = 0;
+    for (i = 0; i < buf1.length; i++) {
+      c = buf1[i];
+      if (c >= 32 && c < 127) { if (!cur) start = i; cur += String.fromCharCode(c); }
+      else { if (cur.length >= 4) arr.push({off:start, s:cur}); cur = ''; }
+    }
+    if (cur.length >= 4) arr.push({off:start, s:cur});
+    if (!arr.length) { el.textContent = '// không có string >= 4 ký tự'; return; }
+    el.innerHTML = arr.map(function(x){
+      return '<span class="addr">0x' + x.off.toString(16).padStart(8,'0') + '</span>  <span class="str">' + x.s.replace(/</g,'&lt;') + '</span>';
+    }).join('\n');
+  }
+}
+
+function downloadRaw() {
+  if (!buf1) return;
+  downloadBlob(buf1, name1);
+}
+
+/* ===== patch helpers ===== */
+function strToBytes(s) {
+  var b = new Uint8Array(s.length);
+  for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xff;
+  return b;
+}
+
+function findAll(buf, needle) {
+  var out = [];
+  var nl = needle.length;
+  if (!nl) return out;
+  outer: for (var i = 0; i <= buf.length - nl; i++) {
+    for (var j = 0; j < nl; j++) {
+      if (buf[i+j] !== needle[j]) continue outer;
+    }
+    out.push(i);
+  }
+  return out;
+}
+
+/* aim bụng: Neck→Spine, Spine→Head, Head→Neck */
+function doBellyPatch() {
+  if (!buf2) return log('chưa upload file', 'err');
+  if (!confirm('chắc chắn bơm code aim bụng?')) return log('hủy bơm aim bụng', 'warn');
+
+  log('bơm code aim bụng...', 'warn');
+
+  var out = new Uint8Array(buf2);
+  var rules = [
+    { from: 'bone_Neck',  to: 'bone_Spine' },
+    { from: 'bone_Spine', to: 'bone_Head'  },
+    { from: 'bone_Head',  to: 'bone_Neck'  }
+  ];
+
+  var tokens = [];
+  for (var i = 0; i < rules.length; i++) {
+    tokens.push({
+      from: rules[i].from,
+      to: rules[i].to,
+      token: new Uint8Array(rules[i].from.length),
+      count: 0
+    });
+    for (var k = 0; k < tokens[i].token.length; k++) tokens[i].token[k] = 0x01 + i;
+  }
+
+  for (i = 0; i < tokens.length; i++) {
+    var needle = strToBytes(tokens[i].from);
+    var hits = findAll(out, needle);
+    tokens[i].count = hits.length;
+    for (var h = 0; h < hits.length; h++) out.set(tokens[i].token, hits[h]);
+  }
+
+  for (i = 0; i < tokens.length; i++) {
+    var hits2 = findAll(out, tokens[i].token);
+    var toB = strToBytes(tokens[i].to);
+    var fromLen = tokens[i].from.length;
+    for (h = 0; h < hits2.length; h++) {
+      var pos = hits2[h];
+      var n = Math.min(toB.length, fromLen);
+      for (var k2 = 0; k2 < n; k2++) out[pos + k2] = toB[k2];
+      for (k2 = n; k2 < fromLen; k2++) out[pos + k2] = 0x00;
+    }
+  }
+
+  var total = 0;
+  for (i = 0; i < tokens.length; i++) {
+    total += tokens[i].count;
+    log(tokens[i].from + ' -> ' + tokens[i].to + ' : ' + tokens[i].count + ' chỗ', tokens[i].count ? 'ok' : 'warn');
+  }
+  if (total === 0) log('không tìm thấy bone nào', 'err');
+  else log('tổng ' + total + ' swap. done.', 'ok');
+
+  patched = out;
+  document.getElementById('dl2').disabled = false;
+  log('in:  ' + buf2.length + ' bytes', 'ok');
+  log('out: ' + out.length + ' bytes', 'ok');
+  log(out.length === buf2.length ? 'dung lượng giữ nguyên ✔' : 'dung lượng lệch', 'warn');
+}
+
+/* aim neck nhẹ: Neck→Head */
+function doNeckPatch() {
+  if (!buf2) return log('chưa upload file', 'err');
+  if (!confirm('chắc chắn bơm aim neck nhẹ?')) return log('hủy bơm aim neck nhẹ', 'warn');
+
+  log('bơm aim neck nhẹ...', 'warn');
+  var out = new Uint8Array(buf2);
+  var from = strToBytes('bone_Neck');
+  var to = strToBytes('bone_Head');
+  var hits = findAll(out, from);
+  for (var i = 0; i < hits.length; i++) out.set(to, hits[i]);
+  log('bone_Neck -> bone_Head : ' + hits.length + ' chỗ', hits.length ? 'ok' : 'warn');
+
+  patched = out;
+  document.getElementById('dl2').disabled = false;
+  log('in:  ' + buf2.length + ' bytes', 'ok');
+  log('out: ' + out.length + ' bytes', 'ok');
+}
+
+/* aim drag: ghi bytes hex vào 0x7148 */
+var DRAG_OFFSET = 0x7148;
+var DRAG_BYTES = new Uint8Array([
+  0x31,0x69,0x74,0xEB,0x89,0x29,0xC5,0xBE,
+  0x16,0xDC,0x98,0xBD,0xBB,0x82,0x97,0xB4,
+  0x00,0x00,0x00,0x00,0xBF,0xB2,0x2F,0x3F,
+  0x43,0x32,0x73,0x36,0x66,0x03,0x7B,0x35,
+  0x72,0x1C,0xC7,0x3F,0x72,0x1C,0xC7,0x3F,
+  0x72,0x1C,0xC7,0x3F,0x10,0x00,0x00,0x00,
+  0x62,0x6F,0x6E,0x65,0x5F,0x48,0x65,0x61,
+  0x64,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x23,0xAA,0xA6,0xB8,0xB2,0xF7,0x1F,0xA4
+]);
+
+function doDragPatch() {
+  if (!buf2) return log('chưa upload file', 'err');
+  if (!confirm('chắc chắn bơm code aim drag? ghi ' + DRAG_BYTES.length + ' bytes @ 0x' + DRAG_OFFSET.toString(16)))
+    return log('hủy bơm aim drag', 'warn');
+
+  log('bơm code aim drag...', 'warn');
+  var out = new Uint8Array(buf2);
+  var need = DRAG_OFFSET + DRAG_BYTES.length;
+  if (need > out.length) {
+    log('file quá nhỏ: cần 0x' + need.toString(16) + ' (' + need + '), file có ' + out.length, 'err');
+    return;
+  }
+
+  var oldBytes = out.slice(DRAG_OFFSET, DRAG_OFFSET + DRAG_BYTES.length);
+  log('bytes cũ @0x7148: ' + hexStr(oldBytes), 'warn');
+
+  out.set(DRAG_BYTES, DRAG_OFFSET);
+
+  log('đã ghi ' + DRAG_BYTES.length + ' bytes @0x' + DRAG_OFFSET.toString(16), 'ok');
+  log('bytes mới @0x7148: ' + hexStr(DRAG_BYTES), 'ok');
+
+  patched = out;
+  document.getElementById('dl2').disabled = false;
+  log('in:  ' + buf2.length + ' bytes', 'ok');
+  log('out: ' + out.length + ' bytes', 'ok');
+}
+
+/* verify: hiện bytes hiện tại @0x7148 */
+function verifyDrag() {
+  if (!buf2) return log('chưa upload file', 'err');
+  var need = DRAG_OFFSET + DRAG_BYTES.length;
+  if (need > buf2.length) {
+    log('file quá nhỏ để verify @0x7148: cần ' + need + ', file có ' + buf2.length, 'err');
+    return;
+  }
+  var cur = buf2.slice(DRAG_OFFSET, DRAG_OFFSET + DRAG_BYTES.length);
+  log('=== verify @0x7148 ===', 'warn');
+  log('bytes hiện tại:', 'warn');
+  for (var i = 0; i < cur.length; i += 8) {
+    var row = '';
+    for (var j = i; j < Math.min(i+8, cur.length); j++) {
+      row += cur[j].toString(16).padStart(2,'0').toUpperCase() + ' ';
+    }
+    log('  ' + row.trim());
+  }
+  var equal = true;
+  for (i = 0; i < DRAG_BYTES.length; i++) {
+    if (cur[i] !== DRAG_BYTES[i]) { equal = false; break; }
+  }
+  if (equal) log('✔ khớp 100% với bytes aim drag', 'ok');
+  else log('✘ chưa khớp, bấm "bơm code aim drag" để ghi', 'warn');
+}
+
+function hexStr(bytes) {
+  var s = [];
+  for (var i = 0; i < bytes.length; i++) s.push(bytes[i].toString(16).padStart(2,'0').toUpperCase());
+  return s.join(' ');
+}
+
+function downloadPatched() {
+  if (!patched) return log('chưa bơm gì', 'err');
+  downloadBlob(patched, name2 || 'output.bin');
+  log('downloaded ' + (name2 || 'output.bin') + ' // ' + patched.length + ' bytes', 'ok');
+}
+
+function downloadBlob(buf, name) {
+  var blob = new Blob([buf], { type: 'application/octet-stream' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = name || 'out.bin';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+}
+
+function log(msg, cls) {
+  var el = document.getElementById('log2');
+  var line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = '> ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  while (el.childElementCount > 500) el.removeChild(el.firstChild);
+}
+</script>
+</body>
+  </html>
